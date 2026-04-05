@@ -1305,7 +1305,7 @@ function runDemoScan() {
 async function runLiveScan() {
   const apiKey = document.getElementById('api-key').value.trim();
   if (!apiKey || !apiKey.startsWith('sk-ant')) {
-    addLogLine('SYSTEM', '✗ Please enter a valid Anthropic API key (sk-ant-…)', 'urgent');
+    addLogLine('SYSTEM', '\u2717 Please enter a valid Anthropic API key (sk-ant\u2026)', 'urgent');
     return;
   }
 
@@ -1313,121 +1313,240 @@ async function runLiveScan() {
   resetUI();
   const btn = document.getElementById('scan-btn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> SCANNING…';
+  btn.innerHTML = '<div class="spinner"></div> SCANNING\u2026';
   document.getElementById('live-dot').classList.add('scanning');
   document.getElementById('feed-badge').textContent = 'LIVE SCAN';
   document.getElementById('progress-wrap').classList.add('visible');
 
-  addLogLine('SYSTEM', 'Initiating live scan via Claude API…', 'info');
-  addLogLine('SYSTEM', 'Queries: Jamaity · AFAC · UNESCO · CFW · MENA grants 2026', 'info');
+  addLogLine('SYSTEM', 'Initiating agentic pipeline\u2026', 'info');
 
-  const SCAN_PROMPT = `You are Fundraiser, an AI agent scanning for funding opportunities for a Tunisian media & social impact group with 3 entities:
-1. Production Agency (documentaries, films, TV, post-production)
-2. Digital Media agencies (social media, branded content, digital video)
-3. NGO (youth training in content creation, civic engagement)
+  const API_HEADERS = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true'
+  };
 
-Search for currently OPEN grant calls and funding opportunities (as of April 2026) from: Jamaity, AFAC, UNESCO, EU, Fondation de France, Council of Europe, and other MENA/Tunisia-focused funders.
+  // Accumulated results across all sources — pipeline adds to this
+  let allResults = [];
+  let sourcesHit = new Set();
 
-For each opportunity found, return a JSON array. Each object must have:
-- title, funder, url, entities (array of "production"/"digital"/"ngo"), score (1-5 float), amount, deadlineLabel, deadline (ISO date string YYYY-MM-DD), status ("open"/"urgent"/"closed"/"flagged"), notes
-
-Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real opportunities.`;
-
-  try {
-    addLogLine('CLAUDE', 'Sending search request to claude-sonnet-4-6…', 'info');
-
-    // ── Agentic two-turn loop: handles stop_reason === "tool_use" ──────────────
-    const API_HEADERS = {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    };
-    const TOOLS = [{ type: 'web_search_20250305', name: 'web_search' }];
-
-    let messages = [{ role: 'user', content: SCAN_PROMPT }];
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // HELPER: call Claude with optional tools (agentic loop)
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  async function callClaude({ systemPrompt, userMessage, tools = [], maxTurns = 6 }) {
+    let messages = [{ role: 'user', content: userMessage }];
     let rawText = '';
-    let turnCount = 0;
-    const MAX_TURNS = 8;
+    let turn = 0;
 
-    while (turnCount < MAX_TURNS) {
-      turnCount++;
-      document.getElementById('progress-pct').textContent = Math.round((turnCount / MAX_TURNS) * 90) + '%';
+    while (turn < maxTurns) {
+      turn++;
+      const body = {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        messages
+      };
+      if (systemPrompt) body.system = systemPrompt;
+      if (tools.length) body.tools = tools;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: API_HEADERS,
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 4000,
-          tools: TOOLS,
-          messages
-        })
+        body: JSON.stringify(body)
       });
 
-      if (!response.ok) {
-        const err = await response.json();
-        addLogLine('ERROR', 'API error: ' + (err.error?.message || response.status), 'urgent');
-        btn.disabled = false;
-        btn.innerHTML = '<span class="btn-icon">⟳</span> RETRY';
-        document.getElementById('live-dot').classList.remove('scanning');
-        document.getElementById('feed-badge').textContent = 'ERROR';
-        scanning = false;
-        return;
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error('API ' + resp.status + ': ' + (err.error?.message || resp.status));
       }
 
-      const data = await response.json();
+      const data = await resp.json();
 
-      // Log tool queries and accumulate text as they arrive
       for (const block of data.content) {
         if (block.type === 'text') rawText += block.text;
         if (block.type === 'tool_use') {
-          addLogLine('WEB SEARCH', 'Query: ' + (block.input?.query || '—'), 'info');
+          addLogLine('TOOL', block.name + ': ' + JSON.stringify(block.input).slice(0, 80), 'info');
         }
       }
 
-      // Done — break out of loop
       if (data.stop_reason === 'end_turn') break;
 
-      // Claude needs to run tools — append assistant turn + empty tool results and continue
       if (data.stop_reason === 'tool_use') {
         messages.push({ role: 'assistant', content: data.content });
         const toolResults = data.content
           .filter(b => b.type === 'tool_use')
-          .map(b => ({
-            type: 'tool_result',
-            tool_use_id: b.id,
-            content: b.output || ''
-          }));
+          .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: b.output || '' }));
         messages.push({ role: 'user', content: toolResults });
-        addLogLine('CLAUDE', 'Turn ' + turnCount + ' — processing search results…', 'info');
         continue;
       }
-
-      break; // max_tokens or other stop
+      break;
     }
+    return rawText;
+  }
 
-    addLogLine('CLAUDE', 'Response received — parsing results…', 'info');
-
-    // Try to parse JSON from accumulated text
-    let parsed = [];
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // HELPER: safe JSON array parse
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  function safeParseArray(text) {
     try {
-      const match = rawText.match(/\[[\s\S]*\]/);
-      if (match) parsed = JSON.parse(match[0]);
-    } catch(e) {
-      addLogLine('PARSER', 'Could not parse structured JSON. Showing raw response.', 'urgent');
-      addLogLine('CLAUDE', rawText.slice(0, 200) + '…', 'info');
-      btn.disabled = false;
-      btn.innerHTML = '<span class="btn-icon">⟳</span> RETRY';
-      scanning = false;
-      document.getElementById('live-dot').classList.remove('scanning');
-      document.getElementById('feed-badge').textContent = 'PARSE ERROR';
-      return;
+      const m = text.match(/\[[\s\S]*\]/);
+      if (m) return JSON.parse(m[0]);
+    } catch(e) {}
+    return null;
+  }
+
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // HELPER: update progress bar (0\u2013100 pct)
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  function setProgress(pct, label) {
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+    if (label) document.getElementById('progress-source').textContent = label;
+  }
+
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // STEP 1 \u2014 JAMAITY  (web_fetch on real filter URLs)
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // Jamaity is a WordPress site with server-rendered HTML.
+  // Filter URLs return full page content \u2014 no JS execution required.
+  // We fetch 4 relevant filter combinations and ask Claude to parse + score them.
+  async function stepJamaity() {
+    addLogLine('JAMAITY', 'Step 1/N \u2014 fetching jamaity.org/forsa/ (real HTML\u2026)', 'info');
+    sourcesHit.add('JAMAITY');
+    animateCounter('stat-sources', sourcesHit.size);
+    document.getElementById('stat-sources-sub').textContent = [...sourcesHit].join(', ').toLowerCase();
+    setProgress(5, 'Jamaity \u2014 fetching pages\u2026');
+
+    // The 4 filter combinations most relevant to our 3 entities:
+    // - all types (catch appel \u00e0 projets, dons, participation, etc.)
+    // - appel-a-projets specifically (highest relevance for Production + NGO)
+    // - page 2 of all types (pagination)
+    const JAMAITY_URLS = [
+      'https://jamaity.org/forsa/?type=all&region=tunisie&theme=all',
+      'https://jamaity.org/forsa/?type=appel-a-projets&region=tunisie&theme=all',
+      'https://jamaity.org/forsa/?type=all&region=tunisie&theme=all&paged=2',
+      'https://jamaity.org/forsa/?type=all&region=tunisie&theme=Cin%C3%A9ma',
+    ];
+
+    // Fetch all pages in parallel using Claude\u2019s web_fetch tool
+    // We do this by giving Claude a system prompt that instructs it to fetch each URL
+    // and return the raw opportunity cards it finds.
+    const FETCH_PROMPT = `You are a web scraping assistant. I need you to fetch these Jamaity.org pages and extract ALL opportunity cards from each page.
+
+For each page, use web_fetch to retrieve the full HTML, then extract every opportunity card you find.
+
+Pages to fetch:
+${JAMAITY_URLS.map((u, i) => `${i+1}. ${u}`).join('\n')}
+
+For each opportunity card found across ALL pages, extract:
+- title (the opportunity name)
+- funder (the "Lanc\u00e9 par" organization)
+- type (e.g. "Appel \u00e0 projets", "Appel \u00e0 candidatures", etc.)
+- deadline_text (e.g. "Expire dans 3 semaines", "Expire dans 2 jours")
+- url (construct it as https://jamaity.org/opportunity/[slug]/ from the card\u2019s link href if visible, or leave blank)
+
+After fetching all pages, return ONLY a JSON array of all unique opportunities found. No markdown, no explanation.
+Format: [{"title":"...","funder":"...","type":"...","deadline_text":"...","url":"..."}]
+
+Deduplicate by title. Fetch ALL 4 URLs.`;
+
+    addLogLine('JAMAITY', 'Calling Claude to fetch + parse Jamaity pages\u2026', 'info');
+    setProgress(10, 'Jamaity \u2014 Claude fetching pages\u2026');
+
+    const rawText = await callClaude({
+      userMessage: FETCH_PROMPT,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      maxTurns: 10
+    });
+
+    const rawItems = safeParseArray(rawText);
+    if (!rawItems || !rawItems.length) {
+      addLogLine('JAMAITY', '\u26a0 Could not parse Jamaity page data \u2014 skipping source', 'urgent');
+      return [];
     }
 
-    // Assign ranks + compute daysLeft client-side from ISO deadline (Fix #5)
-    parsed = parsed
-      .sort((a,b) => (b.score||0)-(a.score||0))
+    addLogLine('JAMAITY', `Found ${rawItems.length} raw items \u2014 now scoring\u2026`, 'found');
+    setProgress(30, 'Jamaity \u2014 scoring opportunities\u2026');
+    animateCounter('stat-found', allResults.length + rawItems.length);
+
+    // STEP 1b: Claude scores + structures the raw Jamaity items
+    const SCORE_PROMPT = `You are Fundraiser, an AI agent scoring funding opportunities for a Tunisian media & social impact group with 3 entities:
+1. Production Agency (documentaries, films, TV, post-production, audiovisual)
+2. Digital Media agencies (\u00d72) (social media, branded content, digital video, web series)
+3. NGO (youth training in content creation, civic engagement, media literacy)
+
+Here are raw opportunities scraped from Jamaity.org:
+${JSON.stringify(rawItems, null, 2)}
+
+For each opportunity:
+1. Determine which entities it fits: "production", "digital", "ngo" (can be multiple)
+2. Score it 1.0-5.0 based on: relevance to our entities (30%), Tunisia eligibility (25%), funding size potential (15%), win probability (15%), strategic value (10%), timeline feasibility (5%)
+3. Auto-disqualify (score 0) if: clearly not relevant to media/culture/civil society/youth
+4. Parse the deadline_text into an ISO date (YYYY-MM-DD). Today is ${new Date().toISOString().slice(0,10)}. Rules:
+   - "Expire dans X jours" = today + X days
+   - "Expire dans X semaine(s)" = today + X*7 days  
+   - "Expire dans X mois" = today + X*30 days
+   - "Expir\u00e9" or past = yesterday's date
+5. Estimate amount as "TBD" if not mentioned
+6. Write a 1-sentence strategic note in English
+
+Return ONLY a JSON array. Each object:
+{"title":"...","funder":"...","url":"...","entities":["production","ngo"],"score":4.2,"amount":"TBD","deadlineLabel":"...","deadline":"2026-05-15","notes":"..."}
+
+Only include items with score > 0. Sort by score descending. Return ALL scored items, do not truncate.`;
+
+    addLogLine('JAMAITY', 'Claude scoring ' + rawItems.length + ' items\u2026', 'info');
+
+    const scoreText = await callClaude({
+      userMessage: SCORE_PROMPT,
+      maxTurns: 3
+    });
+
+    const scored = safeParseArray(scoreText);
+    if (!scored || !scored.length) {
+      addLogLine('JAMAITY', '\u26a0 Scoring produced no results', 'urgent');
+      return [];
+    }
+
+    // Tag each result with its source
+    const tagged = scored.map(o => ({ ...o, source: 'Jamaity' }));
+
+    addLogLine('JAMAITY', `\u2713 ${tagged.length} opportunities scored from Jamaity`, 'done');
+    tagged.forEach(o => {
+      const icon = (o.score >= 4) ? 'found' : 'info';
+      addLogLine('JAMAITY', o.title?.slice(0, 55) + ' \u2014 score ' + o.score, icon);
+    });
+
+    return tagged;
+  }
+
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // FUTURE STEPS \u2014 stubs ready to implement
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // async function stepAFAC()    { ... }  // arabculturefund.org/Programs
+  // async function stepUNESCO()  { ... }  // unesco.org IFCD + other calls
+  // async function stepCFW()     { ... }  // culturefundingwatch.com
+  // async function stepEU()      { ... }  // ec.europa.eu EIDHR/ENI/CERV
+  // async function stepCoE()     { ... }  // eproc.coe.int tenders
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // PIPELINE ORCHESTRATOR
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  try {
+    // --- Run each source step ---
+    const jamaityResults = await stepJamaity();
+    allResults = allResults.concat(jamaityResults);
+
+    // (future steps slot in here:)
+    // const afacResults  = await stepAFAC();  allResults = allResults.concat(afacResults);
+    // const unescoResults = await stepUNESCO(); allResults = allResults.concat(unescoResults);
+
+    setProgress(90, 'Scoring & ranking\u2026');
+    addLogLine('SCORING', 'Applying final scoring model\u2026', 'info');
+
+    // --- Final rank + enrich client-side ---
+    let parsed = allResults
+      .filter(o => o.score > 0)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
       .map((o, i) => {
         const days = o.deadline ? daysFromNow(o.deadline) : 999;
         const { status, statusLabel } = liveStatus(days, days < 0);
@@ -1439,58 +1558,53 @@ Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real 
           statusLabel: o.statusLabel || statusLabel
         };
       });
+
     allData = parsed;
 
-    parsed.forEach(o => {
-      const typeIcon = o.status === 'urgent' ? 'urgent' : 'found';
-      addLogLine(o.funder?.substring(0,18)||'SOURCE', o.title?.substring(0,50) + ' — ' + (o.deadlineLabel||'?'), typeIcon);
-    });
-
-    addLogLine('COMPLETE', '✓ Live scan complete — ' + parsed.length + ' opportunities ranked', 'done');
-
-    renderTable(parsed);
-
     const urgentCount = parsed.filter(o => o.status === 'urgent').length;
-    animateCounter('stat-sources', 6);
+    animateCounter('stat-sources', sourcesHit.size);
     animateCounter('stat-found', parsed.length);
     animateCounter('stat-shortlisted', parsed.filter(o => o.score >= 3.5).length);
     animateCounter('stat-urgent', urgentCount);
     document.getElementById('stat-found-sub').textContent = 'across all sources';
-    document.getElementById('stat-shortlisted-sub').textContent = 'score ≥ 3.5/5';
+    document.getElementById('stat-shortlisted-sub').textContent = 'score \u2265 3.5/5';
     const liveUrgentOpp = parsed.find(o => o.status === 'urgent');
     const liveUrgentSub = liveUrgentOpp
-      ? liveUrgentOpp.title.substring(0, 25) + ' — ' + (liveUrgentOpp.daysLeft > 0 ? liveUrgentOpp.daysLeft + ' days' : 'CLOSED')
+      ? liveUrgentOpp.title.substring(0, 25) + ' \u2014 ' + (liveUrgentOpp.daysLeft > 0 ? liveUrgentOpp.daysLeft + ' days' : 'CLOSED')
       : 'none this cycle';
     document.getElementById('stat-urgent-sub').textContent = liveUrgentSub;
+
+    renderTable(parsed);
 
     const liveAlerts = parsed
       .filter(o => o.status === 'urgent' || o.notes)
       .slice(0, 5)
       .map(o => ({
         type: o.status === 'urgent' ? 'urgent' : 'info',
-        icon: o.status === 'urgent' ? '🔴' : '🔵',
+        icon: o.status === 'urgent' ? '\ud83d\udd34' : '\ud83d\udd35',
         title: o.title?.substring(0, 40),
         desc: o.notes || o.deadlineLabel
       }));
-
     renderAlerts(liveAlerts.length ? liveAlerts : DEMO_ALERTS);
     document.getElementById('alerts-count').textContent = liveAlerts.length;
     document.getElementById('last-scan-time').textContent = new Date().toLocaleString('en-GB');
+    document.getElementById('stat-sources-sub').textContent = [...sourcesHit].join(', ').toLowerCase();
+
+    setProgress(100, 'Complete');
+    addLogLine('COMPLETE', '\u2713 Pipeline complete \u2014 ' + parsed.length + ' opportunities ranked from ' + sourcesHit.size + ' source(s)', 'done');
     document.getElementById('feed-badge').textContent = 'COMPLETE';
     document.getElementById('live-dot').classList.remove('scanning');
-    document.getElementById('progress-fill').style.width = '100%';
-    document.getElementById('progress-pct').textContent = '100%';
     setTimeout(() => { document.getElementById('progress-wrap').classList.remove('visible'); }, 800);
 
   } catch(e) {
-    addLogLine('ERROR', 'Network error: ' + e.message, 'urgent');
+    addLogLine('ERROR', 'Pipeline error: ' + e.message, 'urgent');
     document.getElementById('live-dot').classList.remove('scanning');
     document.getElementById('feed-badge').textContent = 'ERROR';
     document.getElementById('progress-wrap').classList.remove('visible');
   }
 
   btn.disabled = false;
-  btn.innerHTML = '<span class="btn-icon">⟳</span> RESCAN';
+  btn.innerHTML = '<span class="btn-icon">\u27f3</span> RESCAN';
   scanning = false;
 }
 
