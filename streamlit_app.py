@@ -550,6 +550,56 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     padding-top: 16px;
   }
 
+  /* Donor cell */
+  .opp-donor {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent2);
+    line-height: 1.5;
+  }
+
+  /* Duration cell */
+  .duration-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .duration-na {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  /* Countdown cell */
+  .countdown-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  .countdown-num {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .countdown-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+
+  .countdown-urgent { color: var(--red); }
+  .countdown-soon   { color: var(--orange); }
+  .countdown-ok     { color: var(--accent3); }
+  .countdown-closed { color: var(--text-dim); text-decoration: line-through; }
+
   /* Entity tags */
   .tag {
     display: inline-flex;
@@ -896,19 +946,22 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         <thead>
           <tr>
             <th style="width:3%;">#</th>
-            <th style="width:20%;">OPPORTUNITY</th>
-            <th style="width:22%;">NOTES</th>
-            <th style="width:10%;">ENTITY FIT</th>
-            <th style="width:8%;" class="sortable" onclick="sortByScore()">SCORE ↕</th>
-            <th style="width:14%;">AMOUNT</th>
-            <th style="width:11%;">DEADLINE</th>
-            <th style="width:9%;">STATUS</th>
+            <th style="width:16%;">OPPORTUNITY</th>
+            <th style="width:10%;">DONOR</th>
+            <th style="width:18%;">NOTES</th>
+            <th style="width:8%;">ENTITY FIT</th>
+            <th style="width:6%;" class="sortable" onclick="sortByScore()">SCORE ↕</th>
+            <th style="width:10%;">AMOUNT</th>
+            <th style="width:8%;">DURATION</th>
+            <th style="width:9%;">DEADLINE</th>
+            <th style="width:7%;">COUNTDOWN</th>
+            <th style="width:7%;">STATUS</th>
             <th style="width:3%;">↗</th>
           </tr>
         </thead>
         <tbody id="table-body">
           <tr>
-            <td colspan="8">
+            <td colspan="12">
               <div class="empty-state">
                 <div class="big-icon">◎</div>
                 <p>No results yet — press SCAN OPPORTUNITIES to begin</p>
@@ -1026,7 +1079,8 @@ const RAW_OPPORTUNITIES = [
     entities: ["production"],
     score: 4.6,
     scores: { relevance:5, eligibility:5, size:4, winProb:4, strategic:5, timeline:0 },
-    amount: "Up to USD 50,000 (development: up to USD 10,000)",
+    amount: "Up to USD 50,000",
+    duration: "N/A",
     deadline: "2026-04-02",
     deadlineLabel: "2 Apr 2026",
     forcedClosed: true,
@@ -1042,7 +1096,8 @@ const RAW_OPPORTUNITIES = [
     entities: ["production","digital"],
     score: 4.4,
     scores: { relevance:5, eligibility:5, size:4, winProb:4, strategic:5, timeline:3 },
-    amount: "Framework contract renewable to 31 Dec 2030",
+    amount: "Framework contract to 2030",
+    duration: "To 31 Dec 2030",
     deadline: "2026-04-10",
     deadlineLabel: "10 Apr 2026 — 15h00 Tunis",
     forcedClosed: false,
@@ -1052,12 +1107,13 @@ const RAW_OPPORTUNITIES = [
   {
     rank: 3,
     title: "UNESCO / IFCD — International Fund for Cultural Diversity 2026",
-    funder: "UNESCO (International Fund for Cultural Diversity)",
+    funder: "UNESCO / IFCD",
     url: "https://www.unesco.org/creativity/en/international-fund-cultural-diversity",
     entities: ["production","ngo"],
     score: 4.3,
     scores: { relevance:4, eligibility:5, size:5, winProb:3, strategic:5, timeline:4 },
-    amount: "Up to USD 100,000 | Duration: 12–24 months",
+    amount: "Up to USD 100,000",
+    duration: "12 – 24 months",
     deadline: "2026-05-06",
     deadlineLabel: "6 May 2026",
     forcedClosed: false,
@@ -1072,7 +1128,8 @@ const RAW_OPPORTUNITIES = [
     entities: ["ngo"],
     score: 4.1,
     scores: { relevance:5, eligibility:5, size:2, winProb:4, strategic:3, timeline:3 },
-    amount: "€12,000 (small orgs) – €30,000 (experienced orgs) | up to 2 years",
+    amount: "€12,000 – €30,000",
+    duration: "Up to 2 years",
     deadline: "2026-05-15",
     deadlineLabel: "~May 2026 (TBC)",
     forcedClosed: false,
@@ -1082,12 +1139,13 @@ const RAW_OPPORTUNITIES = [
   {
     rank: 5,
     title: "Fablabs dans les 24 gouvernorats — Appel à propositions (ANPR)",
-    funder: "Agence Nationale de la Promotion de la Recherche Scientifique (ANPR)",
+    funder: "ANPR — Agence Nationale de Promotion de la Recherche",
     url: "https://jamaity.org/opportunity/appel-a-propositions-a-lattention-des-associations-en-vue-du-renforcement-ou-la-creation-de-fablabs-dans-les-24-gouvernorats/",
     entities: ["ngo","digital"],
     score: 3.9,
     scores: { relevance:3, eligibility:5, size:2, winProb:4, strategic:4, timeline:4 },
-    amount: "TBD — Tunisian public funding",
+    amount: "TBD — public funding",
+    duration: "N/A",
     deadline: "2026-04-24",
     deadlineLabel: "24 Apr 2026",
     forcedClosed: false,
@@ -1439,18 +1497,6 @@ function renderTable(data) {
       return `<span class="tag ${cls}">${label}</span>`;
     }).join('');
 
-    // Days display
-    let daysHtml = '';
-    if (opp.daysLeft < 0) {
-      daysHtml = `<div class="deadline-days days-closed">closed ${Math.abs(opp.daysLeft)} days ago</div>`;
-    } else if (opp.daysLeft <= 7) {
-      daysHtml = `<div class="deadline-days days-urgent">⚑ ${opp.daysLeft} days left</div>`;
-    } else if (opp.daysLeft <= 21) {
-      daysHtml = `<div class="deadline-days days-soon">${opp.daysLeft} days left</div>`;
-    } else {
-      daysHtml = `<div class="deadline-days days-ok">${opp.daysLeft} days left</div>`;
-    }
-
     // Status badge
     const statusMap = {
       open: 'status-open',
@@ -1461,11 +1507,30 @@ function renderTable(data) {
     const statusClass = statusMap[opp.status] || 'status-open';
     const statusText = opp.statusLabel || opp.status?.toUpperCase() || 'OPEN';
 
+    // Countdown display (goes in its own cell now)
+    let countdownHtml = '';
+    if (opp.daysLeft < 0) {
+      countdownHtml = `<div class="countdown-wrap"><div class="countdown-num countdown-closed">${Math.abs(opp.daysLeft)}</div><div class="countdown-label">days ago</div></div>`;
+    } else if (opp.daysLeft <= 7) {
+      countdownHtml = `<div class="countdown-wrap"><div class="countdown-num countdown-urgent">${opp.daysLeft}</div><div class="countdown-label" style="color:var(--red);">⚑ days left</div></div>`;
+    } else if (opp.daysLeft <= 21) {
+      countdownHtml = `<div class="countdown-wrap"><div class="countdown-num countdown-soon">${opp.daysLeft}</div><div class="countdown-label" style="color:var(--orange);">days left</div></div>`;
+    } else {
+      countdownHtml = `<div class="countdown-wrap"><div class="countdown-num countdown-ok">${opp.daysLeft}</div><div class="countdown-label">days left</div></div>`;
+    }
+
+    // Duration display
+    const durationHtml = (opp.duration && opp.duration !== 'N/A')
+      ? `<div class="duration-val">${escHtml(opp.duration)}</div>`
+      : `<div class="duration-na">N/A</div>`;
+
     tr.innerHTML = `
       <td><div class="rank-cell ${opp.rank <= 2 ? 'top' : ''}">${opp.rank}</div></td>
       <td>
         <div class="opp-title">${escHtml(opp.title)}</div>
-        <div class="opp-funder">${escHtml(opp.funder)}</div>
+      </td>
+      <td>
+        <div class="opp-donor">${escHtml(opp.funder)}</div>
       </td>
       <td class="notes-cell">
         ${opp.notes ? `<div class="opp-notes">${escHtml(opp.notes)}</div>` : '<span style="color:var(--text-dim);font-family:var(--mono);font-size:10px;">—</span>'}
@@ -1480,10 +1545,11 @@ function renderTable(data) {
         </div>
       </td>
       <td><div class="amount">${escHtml(opp.amount)}</div></td>
+      <td>${durationHtml}</td>
       <td>
         <div class="deadline-date">${escHtml(opp.deadlineLabel)}</div>
-        ${daysHtml}
       </td>
+      <td>${countdownHtml}</td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td>
         <a class="link-btn" href="${escHtml(opp.url)}" target="_blank" rel="noopener" title="${escHtml(opp.title)}">
