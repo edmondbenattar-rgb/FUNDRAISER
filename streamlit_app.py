@@ -1016,7 +1016,11 @@ window.addEventListener('DOMContentLoaded', () => {
   animateCounter('stat-urgent', 1);
   document.getElementById('stat-sources-sub').textContent = 'jamaity, afac, unesco, cfw, eu, coe';
   document.getElementById('stat-found-sub').textContent = 'across all sources';
-  document.getElementById('stat-urgent-sub').textContent = 'CoE Lot 2 — deadline 10 Apr';
+  const urgentOpp0 = DEMO_OPPORTUNITIES.find(o => o.status === 'urgent');
+  const urgentSub0 = urgentOpp0
+    ? urgentOpp0.title.substring(0, 25) + ' — ' + (urgentOpp0.daysLeft > 0 ? urgentOpp0.daysLeft + ' days' : 'CLOSED')
+    : 'none this cycle';
+  document.getElementById('stat-urgent-sub').textContent = urgentSub0;
   document.getElementById('alerts-count').textContent = '5';
   document.getElementById('last-scan-time').textContent = '05 Apr 2026, 00:00';
   document.getElementById('feed-badge').textContent = 'LAST SCAN: 05 APR 2026';
@@ -1273,7 +1277,11 @@ function runDemoScan() {
     animateCounter('stat-shortlisted', 5);
     animateCounter('stat-urgent', 1);
     document.getElementById('stat-shortlisted-sub').textContent = 'score ≥ 3.5/5';
-    document.getElementById('stat-urgent-sub').textContent = 'CoE Lot 2 — 5 days';
+    const urgentOpp = allData.find(o => o.status === 'urgent');
+    const urgentSub = urgentOpp
+      ? urgentOpp.title.substring(0, 25) + ' — ' + (urgentOpp.daysLeft > 0 ? urgentOpp.daysLeft + ' days' : 'CLOSED')
+      : 'none this cycle';
+    document.getElementById('stat-urgent-sub').textContent = urgentSub;
     document.getElementById('alerts-count').textContent = '5';
     document.getElementById('last-scan-time').textContent = new Date().toLocaleString('en-GB');
     document.getElementById('feed-badge').textContent = 'COMPLETE';
@@ -1315,53 +1323,87 @@ async function runLiveScan() {
 Search for currently OPEN grant calls and funding opportunities (as of April 2026) from: Jamaity, AFAC, UNESCO, EU, Fondation de France, Council of Europe, and other MENA/Tunisia-focused funders.
 
 For each opportunity found, return a JSON array. Each object must have:
-- title, funder, url, entities (array of "production"/"digital"/"ngo"), score (1-5 float), amount, deadlineLabel, daysLeft (integer, negative if closed), status ("open"/"urgent"/"closed"/"flagged"), notes
+- title, funder, url, entities (array of "production"/"digital"/"ngo"), score (1-5 float), amount, deadlineLabel, deadline (ISO date string YYYY-MM-DD), status ("open"/"urgent"/"closed"/"flagged"), notes
 
 Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real opportunities.`;
 
   try {
-    addLogLine('CLAUDE', 'Sending search request to claude-sonnet-4-20250514…', 'info');
+    addLogLine('CLAUDE', 'Sending search request to claude-sonnet-4-6…', 'info');
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: SCAN_PROMPT }]
-      })
-    });
+    // ── Agentic two-turn loop: handles stop_reason === "tool_use" ──────────────
+    const API_HEADERS = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    };
+    const TOOLS = [{ type: 'web_search_20250305', name: 'web_search' }];
 
-    if (!response.ok) {
-      const err = await response.json();
-      addLogLine('ERROR', 'API error: ' + (err.error?.message || response.status), 'urgent');
-      btn.disabled = false;
-      btn.innerHTML = '<span class="btn-icon">⟳</span> RETRY';
-      document.getElementById('live-dot').classList.remove('scanning');
-      document.getElementById('feed-badge').textContent = 'ERROR';
-      scanning = false;
-      return;
+    let messages = [{ role: 'user', content: SCAN_PROMPT }];
+    let rawText = '';
+    let turnCount = 0;
+    const MAX_TURNS = 8;
+
+    while (turnCount < MAX_TURNS) {
+      turnCount++;
+      document.getElementById('progress-pct').textContent = Math.round((turnCount / MAX_TURNS) * 90) + '%';
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: API_HEADERS,
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 4000,
+          tools: TOOLS,
+          messages
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        addLogLine('ERROR', 'API error: ' + (err.error?.message || response.status), 'urgent');
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">⟳</span> RETRY';
+        document.getElementById('live-dot').classList.remove('scanning');
+        document.getElementById('feed-badge').textContent = 'ERROR';
+        scanning = false;
+        return;
+      }
+
+      const data = await response.json();
+
+      // Log tool queries and accumulate text as they arrive
+      for (const block of data.content) {
+        if (block.type === 'text') rawText += block.text;
+        if (block.type === 'tool_use') {
+          addLogLine('WEB SEARCH', 'Query: ' + (block.input?.query || '—'), 'info');
+        }
+      }
+
+      // Done — break out of loop
+      if (data.stop_reason === 'end_turn') break;
+
+      // Claude needs to run tools — append assistant turn + empty tool results and continue
+      if (data.stop_reason === 'tool_use') {
+        messages.push({ role: 'assistant', content: data.content });
+        const toolResults = data.content
+          .filter(b => b.type === 'tool_use')
+          .map(b => ({
+            type: 'tool_result',
+            tool_use_id: b.id,
+            content: b.output || ''
+          }));
+        messages.push({ role: 'user', content: toolResults });
+        addLogLine('CLAUDE', 'Turn ' + turnCount + ' — processing search results…', 'info');
+        continue;
+      }
+
+      break; // max_tokens or other stop
     }
 
-    const data = await response.json();
     addLogLine('CLAUDE', 'Response received — parsing results…', 'info');
 
-    // Extract text from content blocks
-    let rawText = '';
-    for (const block of data.content) {
-      if (block.type === 'text') rawText += block.text;
-      if (block.type === 'tool_use') {
-        addLogLine('WEB SEARCH', 'Query: ' + (block.input?.query || '—'), 'info');
-      }
-    }
-
-    // Try to parse JSON
+    // Try to parse JSON from accumulated text
     let parsed = [];
     try {
       const match = rawText.match(/\[[\s\S]*\]/);
@@ -1377,8 +1419,20 @@ Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real 
       return;
     }
 
-    // Assign ranks
-    parsed = parsed.sort((a,b) => (b.score||0)-(a.score||0)).map((o,i) => ({...o, rank:i+1}));
+    // Assign ranks + compute daysLeft client-side from ISO deadline (Fix #5)
+    parsed = parsed
+      .sort((a,b) => (b.score||0)-(a.score||0))
+      .map((o, i) => {
+        const days = o.deadline ? daysFromNow(o.deadline) : 999;
+        const { status, statusLabel } = liveStatus(days, days < 0);
+        return {
+          ...o,
+          rank: i + 1,
+          daysLeft: days,
+          status: o.status || status,
+          statusLabel: o.statusLabel || statusLabel
+        };
+      });
     allData = parsed;
 
     parsed.forEach(o => {
@@ -1395,6 +1449,13 @@ Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real 
     animateCounter('stat-found', parsed.length);
     animateCounter('stat-shortlisted', parsed.filter(o => o.score >= 3.5).length);
     animateCounter('stat-urgent', urgentCount);
+    document.getElementById('stat-found-sub').textContent = 'across all sources';
+    document.getElementById('stat-shortlisted-sub').textContent = 'score ≥ 3.5/5';
+    const liveUrgentOpp = parsed.find(o => o.status === 'urgent');
+    const liveUrgentSub = liveUrgentOpp
+      ? liveUrgentOpp.title.substring(0, 25) + ' — ' + (liveUrgentOpp.daysLeft > 0 ? liveUrgentOpp.daysLeft + ' days' : 'CLOSED')
+      : 'none this cycle';
+    document.getElementById('stat-urgent-sub').textContent = liveUrgentSub;
 
     const liveAlerts = parsed
       .filter(o => o.status === 'urgent' || o.notes)
@@ -1429,7 +1490,7 @@ Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real 
 function resetUI() {
   document.getElementById('feed-log').innerHTML = '';
   document.getElementById('table-body').innerHTML = `
-    <tr><td colspan="8">
+    <tr><td colspan="12">
       <div class="empty-state"><div class="big-icon">◎</div><p>Scanning in progress…</p></div>
     </td></tr>`;
   document.getElementById('alerts-panel').innerHTML = `
