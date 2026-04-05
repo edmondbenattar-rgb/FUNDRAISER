@@ -532,6 +532,24 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     color: var(--text-muted);
   }
 
+  /* Notes cell */
+  .opp-notes {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-width: 260px;
+  }
+
+  td.notes-cell {
+    vertical-align: top;
+    padding-top: 16px;
+  }
+
   /* Entity tags */
   .tag {
     display: inline-flex;
@@ -877,14 +895,15 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <table id="results-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>OPPORTUNITY</th>
-            <th>ENTITY FIT</th>
-            <th class="sortable" onclick="sortByScore()">SCORE ↕</th>
-            <th>AMOUNT</th>
-            <th>DEADLINE</th>
-            <th>STATUS</th>
-            <th>LINK</th>
+            <th style="width:3%;">#</th>
+            <th style="width:20%;">OPPORTUNITY</th>
+            <th style="width:22%;">NOTES</th>
+            <th style="width:10%;">ENTITY FIT</th>
+            <th style="width:8%;" class="sortable" onclick="sortByScore()">SCORE ↕</th>
+            <th style="width:14%;">AMOUNT</th>
+            <th style="width:11%;">DEADLINE</th>
+            <th style="width:9%;">STATUS</th>
+            <th style="width:3%;">↗</th>
           </tr>
         </thead>
         <tbody id="table-body">
@@ -1447,7 +1466,9 @@ function renderTable(data) {
       <td>
         <div class="opp-title">${escHtml(opp.title)}</div>
         <div class="opp-funder">${escHtml(opp.funder)}</div>
-        ${opp.notes ? `<div style="font-size:10px;color:var(--text-dim);margin-top:3px;font-family:var(--mono);">${escHtml(opp.notes)}</div>` : ''}
+      </td>
+      <td class="notes-cell">
+        ${opp.notes ? `<div class="opp-notes">${escHtml(opp.notes)}</div>` : '<span style="color:var(--text-dim);font-family:var(--mono);font-size:10px;">—</span>'}
       </td>
       <td>${entityTags}</td>
       <td>
@@ -1465,8 +1486,8 @@ function renderTable(data) {
       </td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td>
-        <a class="link-btn" href="${escHtml(opp.url)}" target="_blank" rel="noopener">
-          ↗ VIEW CALL
+        <a class="link-btn" href="${escHtml(opp.url)}" target="_blank" rel="noopener" title="${escHtml(opp.title)}">
+          ↗
         </a>
       </td>
     `;
