@@ -1,0 +1,40 @@
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.venv
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data (local cache)
+data/*.json
+*.csv
+*.xlsx
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Sensitive
+credentials.json
+tokens.json
