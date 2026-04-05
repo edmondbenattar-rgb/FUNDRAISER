@@ -939,14 +939,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Populate stats
   animateCounter('stat-sources', 6);
-  animateCounter('stat-found', 8);
+  animateCounter('stat-found', 5);
   animateCounter('stat-shortlisted', 5);
   animateCounter('stat-urgent', 1);
   document.getElementById('stat-sources-sub').textContent = 'jamaity, afac, unesco, cfw, eu, coe';
   document.getElementById('stat-found-sub').textContent = 'across all sources';
-  document.getElementById('stat-urgent-sub').textContent = 'CoE Lot 2 — 5 days';
+  document.getElementById('stat-urgent-sub').textContent = 'CoE Lot 2 — deadline 10 Apr';
   document.getElementById('alerts-count').textContent = '5';
-  document.getElementById('last-scan-time').textContent = '05 Apr 2026, 00:00:00';
+  document.getElementById('last-scan-time').textContent = '05 Apr 2026, 00:00';
   document.getElementById('feed-badge').textContent = 'LAST SCAN: 05 APR 2026';
 
   // Populate log with last scan summary
@@ -983,56 +983,66 @@ function setMode(mode) {
 // ═══════════════════════════════════════════════════════
 // DEMO DATA — results from actual scan session
 // ═══════════════════════════════════════════════════════
-const DEMO_OPPORTUNITIES = [
+// ── Helper: compute days left from ISO deadline string ──────────────────────
+function daysFromNow(isoDate) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d     = new Date(isoDate); d.setHours(0,0,0,0);
+  return Math.round((d - today) / 86400000);
+}
+
+// ── Helper: derive live status from days left ────────────────────────────────
+function liveStatus(days, forcedClosed) {
+  if (forcedClosed || days < 0) return { status:'closed',  statusLabel:'CLOSED' };
+  if (days <= 7)                 return { status:'urgent',  statusLabel:'URGENT' };
+  return                                { status:'open',    statusLabel:'OPEN' };
+}
+
+// ── Raw opportunity definitions (deadlines as ISO strings) ───────────────────
+const RAW_OPPORTUNITIES = [
   {
     rank: 1,
-    title: "AFAC Documentary Film Grant — Cycle 1",
-    funder: "Arab Fund for Arts and Culture",
+    title: "AFAC Documentary Film Grant — Production & Post-Production Cycle 1",
+    funder: "Arab Fund for Arts and Culture (AFAC)",
     url: "https://www.arabculturefund.org/Programs/7",
     entities: ["production"],
     score: 4.6,
     scores: { relevance:5, eligibility:5, size:4, winProb:4, strategic:5, timeline:0 },
-    amount: "Up to USD 50,000",
+    amount: "Up to USD 50,000 (development: up to USD 10,000)",
     deadline: "2026-04-02",
     deadlineLabel: "2 Apr 2026",
-    daysLeft: -3,
-    status: "closed",
-    statusLabel: "CLOSED — Cycle 2 June",
-    notes: "Next cycle (Cinema grant) opens ~June 2026. Prep dossier now.",
+    forcedClosed: true,
+    closedNote: "CLOSED — Next cycle (Cinema grant) opens ~June 2026",
+    notes: "Cycle 1 closed. Next cycle (Cinema, Music, Photography) opens ~June 2026. Begin dossier preparation now. Tunisia explicitly eligible; AFAC has funded Tunisian cinema (Youssef Chebbi, 2025).",
     source: "AFAC"
   },
   {
     rank: 2,
-    title: "CoE — Audiovisual Production Services (Lot 2)",
+    title: "CoE — Accord-cadre Audiovisual Production Services (Lot 2)",
     funder: "Council of Europe, Tunis Bureau",
     url: "https://eproc.coe.int/callfortenders/11042#details",
     entities: ["production","digital"],
     score: 4.4,
     scores: { relevance:5, eligibility:5, size:4, winProb:4, strategic:5, timeline:3 },
-    amount: "Framework contract to 2030",
+    amount: "Framework contract renewable to 31 Dec 2030",
     deadline: "2026-04-10",
-    deadlineLabel: "10 Apr 2026",
-    daysLeft: 5,
-    status: "urgent",
-    statusLabel: "URGENT",
-    notes: "Register on E-Proc platform today. 5 days remaining.",
+    deadlineLabel: "10 Apr 2026 — 15h00 Tunis",
+    forcedClosed: false,
+    notes: "Register on E-Proc platform TODAY at eproc.coe.int (1 business day lead time). Submit 3+ examples of past audiovisual work. Selected companies get multi-year recurring paid production work through 2030.",
     source: "Jamaity / CoE"
   },
   {
     rank: 3,
-    title: "UNESCO IFCD 2026 — Cultural Diversity Fund",
-    funder: "UNESCO / International Fund for Cultural Diversity",
+    title: "UNESCO / IFCD — International Fund for Cultural Diversity 2026",
+    funder: "UNESCO (International Fund for Cultural Diversity)",
     url: "https://www.unesco.org/creativity/en/international-fund-cultural-diversity",
     entities: ["production","ngo"],
     score: 4.3,
     scores: { relevance:4, eligibility:5, size:5, winProb:3, strategic:5, timeline:4 },
-    amount: "Up to USD 100,000",
+    amount: "Up to USD 100,000 | Duration: 12–24 months",
     deadline: "2026-05-06",
     deadlineLabel: "6 May 2026",
-    daysLeft: 31,
-    status: "open",
-    statusLabel: "OPEN",
-    notes: "Joint Production + NGO application strongly recommended.",
+    forcedClosed: false,
+    notes: "Largest grant this cycle. Joint Production Agency + NGO application strongly recommended. Frame as structural sector development, not a single film. UNESCO prioritises youth, gender equality, Africa/MENA.",
     source: "UNESCO"
   },
   {
@@ -1043,65 +1053,73 @@ const DEMO_OPPORTUNITIES = [
     entities: ["ngo"],
     score: 4.1,
     scores: { relevance:5, eligibility:5, size:2, winProb:4, strategic:3, timeline:3 },
-    amount: "€12,000–30,000",
+    amount: "€12,000 (small orgs) – €30,000 (experienced orgs) | up to 2 years",
     deadline: "2026-05-15",
-    deadlineLabel: "~May 2026",
-    daysLeft: 40,
-    status: "open",
-    statusLabel: "OPEN",
-    notes: "Confirm exact deadline with Solidarité Laïque Tunisie directly.",
+    deadlineLabel: "~May 2026 (TBC)",
+    forcedClosed: false,
+    notes: "2026 edition live. Targets registered Tunisian associations working with youth 18–30. Digital media literacy and civic engagement explicitly eligible. Confirm exact deadline directly with Solidarité Laïque Tunisie.",
     source: "Jamaity"
   },
   {
     rank: 5,
-    title: "Fablabs dans les 24 gouvernorats",
-    funder: "ANPR — Agence Nationale de la Promotion de la Recherche",
+    title: "Fablabs dans les 24 gouvernorats — Appel à propositions (ANPR)",
+    funder: "Agence Nationale de la Promotion de la Recherche Scientifique (ANPR)",
     url: "https://jamaity.org/opportunity/appel-a-propositions-a-lattention-des-associations-en-vue-du-renforcement-ou-la-creation-de-fablabs-dans-les-24-gouvernorats/",
     entities: ["ngo","digital"],
     score: 3.9,
     scores: { relevance:3, eligibility:5, size:2, winProb:4, strategic:4, timeline:4 },
-    amount: "TBD (Tunisian public funding)",
+    amount: "TBD — Tunisian public funding",
     deadline: "2026-04-24",
     deadlineLabel: "24 Apr 2026",
-    daysLeft: 19,
-    status: "open",
-    statusLabel: "OPEN",
-    notes: "Frame as digital media production training for youth. Contact ANPR for budget.",
+    forcedClosed: false,
+    notes: "National programme — no international competition. Frame as digital media production training for youth in underserved regions. Contact ANPR directly for budget details.",
     source: "Jamaity"
   }
 ];
 
+// ── Hydrate with live daysLeft + status ──────────────────────────────────────
+const DEMO_OPPORTUNITIES = RAW_OPPORTUNITIES.map(o => {
+  const days = daysFromNow(o.deadline);
+  const { status, statusLabel } = liveStatus(days, o.forcedClosed);
+  return {
+    ...o,
+    daysLeft: days,
+    status,
+    statusLabel: o.forcedClosed ? o.closedNote : statusLabel
+  };
+});
+
 const DEMO_ALERTS = [
-  { type: "urgent", icon: "🔴", title: "ACTION IN 5 DAYS", desc: "Council of Europe (Lot 2): Register on E-Proc platform immediately. Deadline: 10 Apr 2026 15h00 Tunis time." },
-  { type: "warn",   icon: "🟠", title: "AFAC CYCLE 2 APPROACHING", desc: "Cinema & Music grants open ~June 2026. Up to USD 50,000. Begin project dossier preparation now." },
-  { type: "info",   icon: "🔵", title: "UNESCO IFCD — 31 DAYS", desc: "Largest grant this cycle (USD 100K). Strong angle: joint Production Agency + NGO application." },
-  { type: "good",   icon: "🟢", title: "CFW PRO DATABASE", desc: "Culture Funding Watch (Enfidha, TN) has 1,000+ funders with MENA filters. Subscription recommended." },
-  { type: "info",   icon: "🔵", title: "NEXT SCAN RECOMMENDED", desc: "Schedule weekly: Jamaity (daily), AFAC (monthly), EU portals (bi-weekly)." }
+  { type: "urgent", icon: "🔴", title: "ACTION NOW — CoE Lot 2", desc: "Council of Europe Tunis Bureau: Register on E-Proc platform TODAY. Deadline: 10 Apr 2026 15h00 Tunis time. Framework contract to 2030. Score: 4.4/5." },
+  { type: "warn",   icon: "🟠", title: "AFAC CYCLE 2 — PREP NOW", desc: "Documentary Film Grant Cycle 1 closed (2 Apr). Cinema & Music grants open ~June 2026. Up to USD 50,000. Begin dossier immediately — Score: 4.6/5." },
+  { type: "info",   icon: "🔵", title: "UNESCO IFCD — 31 DAYS", desc: "Largest grant this cycle: up to USD 100,000 / 12–24 months. Joint Production Agency + NGO application strongly recommended. Deadline: 6 May 2026. Score: 4.3/5." },
+  { type: "good",   icon: "🟢", title: "Pouvoir d'Agir des Jeunes", desc: "Fondation de France / Solidarité Laïque Tunisie — €12K–30K. 2026 edition LIVE. 20 grants per cycle, high win probability. Confirm exact deadline with SLT. Score: 4.1/5." },
+  { type: "good",   icon: "🟢", title: "Fablabs ANPR — 19 DAYS", desc: "Tunisian national programme across 24 governorates. No international competition. Frame as digital media / youth training. Deadline: 24 Apr 2026. Score: 3.9/5." }
 ];
 
 const DEMO_LOG_SEQUENCE = [
   { delay: 300,  type:'info',   source:'SYSTEM',        msg:'Initializing Fundraiser scan engine…' },
   { delay: 700,  type:'info',   source:'SYSTEM',        msg:'Mode: DEMO — replaying scan of 5 Apr 2026' },
-  { delay: 1200, type:'info',   source:'JAMAITY',       msg:'Fetching opportunités page…' },
-  { delay: 1800, type:'found',  source:'JAMAITY',       msg:'Found: Fablabs 24 gouvernorats (ANPR) — 24 Apr' },
-  { delay: 2200, type:'found',  source:'JAMAITY',       msg:'Found: CoE audiovisual production tender — 10 Apr' },
-  { delay: 2700, type:'urgent', source:'JAMAITY',       msg:'⚑ URGENT: CoE deadline in 5 days — flagging' },
+  { delay: 1200, type:'info',   source:'JAMAITY',       msg:'Fetching jamaity.org/opportunites…' },
+  { delay: 1800, type:'found',  source:'JAMAITY',       msg:'Found: Fablabs 24 gouvernorats (ANPR) — deadline 24 Apr' },
+  { delay: 2200, type:'found',  source:'JAMAITY',       msg:'Found: CoE Lot 2 audiovisual production tender — 10 Apr' },
+  { delay: 2700, type:'urgent', source:'JAMAITY',       msg:'⚑ URGENT: CoE deadline in 5 days — flagging immediately' },
   { delay: 3100, type:'info',   source:'JAMAITY',       msg:'Checking Solidarité Laïque / Fondation de France…' },
-  { delay: 3600, type:'found',  source:'JAMAITY',       msg:'Found: Pouvoir d'Agir des Jeunes 2026 — ~May' },
+  { delay: 3600, type:'found',  source:'JAMAITY',       msg:'Found: Pouvoir d\'Agir des Jeunes 2026 — ~May deadline' },
   { delay: 4000, type:'info',   source:'AFAC',          msg:'Fetching arabculturefund.org/Programs…' },
-  { delay: 4600, type:'found',  source:'AFAC',          msg:'Found: Documentary Film Grant — deadline 2 Apr' },
-  { delay: 5000, type:'urgent', source:'AFAC',          msg:'⚑ Deadline passed (−3 days) — flagging for Cycle 2' },
+  { delay: 4600, type:'found',  source:'AFAC',          msg:'Found: Documentary Film Grant — deadline was 2 Apr' },
+  { delay: 5000, type:'urgent', source:'AFAC',          msg:'⚑ Deadline passed (−3 days) — flagging for Cycle 2 (June)' },
   { delay: 5500, type:'found',  source:'AFAC',          msg:'Found: Visual Arts Grant — deadline 2 Apr (closed)' },
   { delay: 5900, type:'found',  source:'AFAC',          msg:'Found: Performing Arts Grant — deadline 2 Apr (closed)' },
-  { delay: 6300, type:'info',   source:'UNESCO',        msg:'Fetching IFCD 2026 call…' },
-  { delay: 6900, type:'found',  source:'UNESCO',        msg:'Found: IFCD Cultural Diversity — deadline 6 May' },
+  { delay: 6300, type:'info',   source:'UNESCO',        msg:'Fetching IFCD 2026 call for proposals…' },
+  { delay: 6900, type:'found',  source:'UNESCO',        msg:'Found: IFCD Cultural Diversity — deadline 6 May — up to USD 100K' },
   { delay: 7400, type:'info',   source:'CFW',           msg:'Checking culturefundingwatch.com (public feed)…' },
-  { delay: 7900, type:'info',   source:'CFW',           msg:'Pro database requires subscription — partial scan' },
-  { delay: 8400, type:'info',   source:'EU PORTALS',    msg:'Checking ec.europa.eu calls — MENA / Mediterranean…' },
+  { delay: 7900, type:'info',   source:'CFW',           msg:'Pro database requires subscription — partial scan only' },
+  { delay: 8400, type:'info',   source:'EU PORTALS',    msg:'Checking ec.europa.eu — MENA / Mediterranean filter…' },
   { delay: 8900, type:'info',   source:'EU PORTALS',    msg:'No new open calls matching profile this cycle' },
-  { delay: 9400, type:'info',   source:'SCORING',       msg:'Applying scoring model (6 criteria × weights)…' },
-  { delay: 9900, type:'info',   source:'SCORING',       msg:'Filtering: 0 auto-disqualified, 5 shortlisted' },
-  { delay:10400, type:'done',   source:'COMPLETE',      msg:'✓ Scan complete — 5 opportunities ranked below' },
+  { delay: 9400, type:'info',   source:'SCORING',       msg:'Applying scoring model: 6 criteria × weighted scores…' },
+  { delay: 9900, type:'info',   source:'SCORING',       msg:'0 auto-disqualified · 5 shortlisted (score ≥ 3.5)' },
+  { delay:10400, type:'done',   source:'COMPLETE',      msg:'✓ Scan complete — 5 opportunities ranked · 1 urgent action required' },
 ];
 
 const DEMO_SOURCES = ['JAMAITY','AFAC','UNESCO','CFW','EU PORTALS','SCORING'];
