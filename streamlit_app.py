@@ -1013,7 +1013,7 @@ window.addEventListener('DOMContentLoaded', () => {
   animateCounter('stat-sources', 6);
   animateCounter('stat-found', 5);
   animateCounter('stat-shortlisted', 5);
-  animateCounter('stat-urgent', 1);
+  animateCounter('stat-urgent', DEMO_OPPORTUNITIES.filter(o => o.status === 'urgent').length);
   document.getElementById('stat-sources-sub').textContent = 'jamaity, afac, unesco, cfw, eu, coe';
   document.getElementById('stat-found-sub').textContent = 'across all sources';
   const urgentOpp0 = DEMO_OPPORTUNITIES.find(o => o.status === 'urgent');
@@ -1021,8 +1021,10 @@ window.addEventListener('DOMContentLoaded', () => {
     ? urgentOpp0.title.substring(0, 25) + ' — ' + (urgentOpp0.daysLeft > 0 ? urgentOpp0.daysLeft + ' days' : 'CLOSED')
     : 'none this cycle';
   document.getElementById('stat-urgent-sub').textContent = urgentSub0;
-  document.getElementById('alerts-count').textContent = '5';
-  document.getElementById('last-scan-time').textContent = '05 Apr 2026, 00:00';
+  document.getElementById('alerts-count').textContent = DEMO_ALERTS.length.toString();
+  const loadDate = new Date();
+  const loadDateStr = loadDate.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('last-scan-time').textContent = '05 Apr 2026 (loaded ' + loadDateStr + ')';
   document.getElementById('feed-badge').textContent = 'LAST SCAN: 05 APR 2026';
 
   // Populate log with last scan summary
@@ -1170,12 +1172,15 @@ const DEMO_OPPORTUNITIES = RAW_OPPORTUNITIES.map(o => {
   };
 });
 
+const _coeDays    = daysFromNow('2026-04-10');
+const _unescoDays = daysFromNow('2026-05-06');
+const _fablabDays = daysFromNow('2026-04-24');
 const DEMO_ALERTS = [
-  { type: "urgent", icon: "🔴", title: "ACTION NOW — CoE Lot 2", desc: "Council of Europe Tunis Bureau: Register on E-Proc platform TODAY. Deadline: 10 Apr 2026 15h00 Tunis time. Framework contract to 2030. Score: 4.4/5." },
+  { type: "urgent", icon: "🔴", title: "ACTION NOW — CoE Lot 2", desc: "Council of Europe Tunis Bureau: Register on E-Proc platform TODAY. Deadline: 10 Apr 2026 15h00 Tunis time. Framework contract to 2030. Score: 4.4/5." + (_coeDays > 0 ? ' (' + _coeDays + ' days left)' : ' — CLOSED') },
   { type: "warn",   icon: "🟠", title: "AFAC CYCLE 2 — PREP NOW", desc: "Documentary Film Grant Cycle 1 closed (2 Apr). Cinema & Music grants open ~June 2026. Up to USD 50,000. Begin dossier immediately — Score: 4.6/5." },
-  { type: "info",   icon: "🔵", title: "UNESCO IFCD — 31 DAYS", desc: "Largest grant this cycle: up to USD 100,000 / 12–24 months. Joint Production Agency + NGO application strongly recommended. Deadline: 6 May 2026. Score: 4.3/5." },
+  { type: "info",   icon: "🔵", title: "UNESCO IFCD — " + (_unescoDays > 0 ? _unescoDays + " DAYS" : "CLOSED"), desc: "Largest grant this cycle: up to USD 100,000 / 12–24 months. Joint Production Agency + NGO application strongly recommended. Deadline: 6 May 2026. Score: 4.3/5." },
   { type: "good",   icon: "🟢", title: "Pouvoir d'Agir des Jeunes", desc: "Fondation de France / Solidarité Laïque Tunisie — €12K–30K. 2026 edition LIVE. 20 grants per cycle, high win probability. Confirm exact deadline with SLT. Score: 4.1/5." },
-  { type: "good",   icon: "🟢", title: "Fablabs ANPR — 19 DAYS", desc: "Tunisian national programme across 24 governorates. No international competition. Frame as digital media / youth training. Deadline: 24 Apr 2026. Score: 3.9/5." }
+  { type: "good",   icon: "🟢", title: "Fablabs ANPR — " + (_fablabDays > 0 ? _fablabDays + " DAYS" : "CLOSED"), desc: "Tunisian national programme across 24 governorates. No international competition. Frame as digital media / youth training. Deadline: 24 Apr 2026. Score: 3.9/5." }
 ];
 
 const DEMO_LOG_SEQUENCE = [
@@ -1286,6 +1291,7 @@ function runDemoScan() {
     document.getElementById('last-scan-time').textContent = new Date().toLocaleString('en-GB');
     document.getElementById('feed-badge').textContent = 'COMPLETE';
     document.getElementById('live-dot').classList.remove('scanning');
+    document.getElementById('progress-wrap').classList.remove('visible');
 
     btn.disabled = false;
     btn.innerHTML = '<span class="btn-icon">⟳</span> RESCAN';
@@ -1474,9 +1480,13 @@ Return ONLY valid JSON array, no markdown, no explanation. Find at least 5 real 
     document.getElementById('live-dot').classList.remove('scanning');
     document.getElementById('progress-fill').style.width = '100%';
     document.getElementById('progress-pct').textContent = '100%';
+    setTimeout(() => { document.getElementById('progress-wrap').classList.remove('visible'); }, 800);
 
   } catch(e) {
     addLogLine('ERROR', 'Network error: ' + e.message, 'urgent');
+    document.getElementById('live-dot').classList.remove('scanning');
+    document.getElementById('feed-badge').textContent = 'ERROR';
+    document.getElementById('progress-wrap').classList.remove('visible');
   }
 
   btn.disabled = false;
@@ -1687,8 +1697,9 @@ function filterTable(filter, btn) {
 function sortByScore() {
   if (!allData.length) return;
   sortDir *= -1;
-  const sorted = [...allData].sort((a, b) => sortDir * (a.score - b.score));
-  sorted.forEach((o, i) => { o.rank = i + 1; });
+  const sorted = [...allData]
+    .sort((a, b) => sortDir * (a.score - b.score))
+    .map((o, i) => ({ ...o, rank: i + 1 }));
   renderTable(sorted);
 }
 </script>
