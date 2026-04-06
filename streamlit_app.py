@@ -1437,9 +1437,24 @@ async function stepJamaity(apiKey) {
 
   const JAMAITY_URLS = [
     'https://jamaity.org/opportunites/?opportunity_type=tous',
-    'https://jamaity.org/opportunites/?opportunity_type=appel-a-projets',
-    'https://jamaity.org/opportunites/?page=2',
-    'https://jamaity.org/opportunites/?opportunity_theme=cinema'
+    'https://jamaity.org/opportunites/?opportunity_theme=cinema',
+    'https://jamaity.org/opportunites/?opportunity_theme=creation-de-contenu',
+    'https://jamaity.org/opportunites/?opportunity_theme=communication',
+    'https://jamaity.org/opportunites/?opportunity_theme=agence-de-production',
+    'https://jamaity.org/opportunites/?opportunity_theme=podcast',
+    'https://jamaity.org/opportunites/?opportunity_theme=video',
+    'https://jamaity.org/opportunites/?opportunity_theme=tournage',
+    'https://jamaity.org/opportunites/?opportunity_theme=formation',
+    'https://jamaity.org/opportunites/?opportunity_theme=emploi-jeunes',
+    'https://jamaity.org/opportunites/?opportunity_theme=engagement-civique',
+    'https://jamaity.org/opportunites/?opportunity_theme=art',
+    'https://jamaity.org/opportunites/?opportunity_theme=culture',
+    'https://jamaity.org/opportunites/?opportunity_theme=esport',
+    'https://jamaity.org/opportunites/?opportunity_theme=gaming',
+    'https://jamaity.org/opportunites/?opportunity_theme=musique',
+    'https://jamaity.org/opportunites/?opportunity_theme=street-art',
+    'https://jamaity.org/opportunites/?opportunity_theme=influence-digitale',
+    'https://jamaity.org/opportunites/?opportunity_theme=intelligence-artificielle'
   ];
 
   addLogLine('JAMAITY', 'Fetching opportunities from 4 Jamaity filter URLs…', 'info');
