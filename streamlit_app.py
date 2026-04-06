@@ -1004,41 +1004,77 @@ updateClock();
 // ═══════════════════════════════════════════════════════
 // AUTO-LOAD EXISTING RESULTS ON PAGE OPEN
 // ═══════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
-  allData = DEMO_OPPORTUNITIES;
-  renderTable(allData);
-  renderAlerts(DEMO_ALERTS);
+window.addEventListener('DOMContentLoaded', async () => {
+  // Try to load persisted live scan results from storage first
+  let savedScan = null;
+  try {
+    const stored = await window.storage.get('fundraiser:last-scan');
+    if (stored && stored.value) {
+      savedScan = JSON.parse(stored.value);
+    }
+  } catch(e) { /* no saved scan yet */ }
 
-  // Populate stats
-  animateCounter('stat-sources', 6);
-  animateCounter('stat-found', 5);
-  animateCounter('stat-shortlisted', 5);
-  animateCounter('stat-urgent', DEMO_OPPORTUNITIES.filter(o => o.status === 'urgent').length);
-  document.getElementById('stat-sources-sub').textContent = 'jamaity, afac, unesco, cfw, eu, coe';
-  document.getElementById('stat-found-sub').textContent = 'across all sources';
-  const urgentOpp0 = DEMO_OPPORTUNITIES.find(o => o.status === 'urgent');
-  const urgentSub0 = urgentOpp0
-    ? urgentOpp0.title.substring(0, 25) + ' — ' + (urgentOpp0.daysLeft > 0 ? urgentOpp0.daysLeft + ' days' : 'CLOSED')
-    : 'none this cycle';
-  document.getElementById('stat-urgent-sub').textContent = urgentSub0;
-  document.getElementById('alerts-count').textContent = DEMO_ALERTS.length.toString();
-  const loadDate = new Date();
-  const loadDateStr = loadDate.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
-  document.getElementById('last-scan-time').textContent = '05 Apr 2026 (loaded ' + loadDateStr + ')';
-  document.getElementById('feed-badge').textContent = 'LAST SCAN: 05 APR 2026';
+  if (savedScan && savedScan.data && savedScan.data.length > 0) {
+    // Restore live scan results
+    allData = savedScan.data;
+    renderTable(allData);
 
-  // Populate log with last scan summary
-  const summaryLines = [
-    { source:'SYSTEM',   msg:'Last scan loaded — 05 April 2026', type:'done' },
-    { source:'JAMAITY',  msg:'3 opportunities found (CoE, Fablabs, Pouvoir d\'Agir)', type:'found' },
-    { source:'AFAC',     msg:'Documentary Film Grant — deadline passed (−3 days)', type:'urgent' },
-    { source:'UNESCO',   msg:'IFCD Cultural Diversity — deadline 6 May 2026', type:'found' },
-    { source:'CFW',      msg:'Pro database requires subscription — partial scan', type:'info' },
-    { source:'SCORING',  msg:'5 shortlisted · 1 urgent · 1 flagged for Cycle 2', type:'done' },
-  ];
-  summaryLines.forEach((l, i) => {
-    setTimeout(() => addLogLine(l.source, l.msg, l.type), i * 120);
-  });
+    const savedAlerts = savedScan.alerts || [];
+    renderAlerts(savedAlerts.length ? savedAlerts : DEMO_ALERTS);
+
+    animateCounter('stat-sources', savedScan.sources || 1);
+    animateCounter('stat-found', allData.length);
+    animateCounter('stat-shortlisted', allData.filter(o => o.score >= 3.5).length);
+    animateCounter('stat-urgent', allData.filter(o => o.status === 'urgent').length);
+    document.getElementById('stat-sources-sub').textContent = savedScan.sourcesList || 'jamaity';
+    document.getElementById('stat-found-sub').textContent = 'across all sources';
+    const urgentOppS = allData.find(o => o.status === 'urgent');
+    const urgentSubS = urgentOppS
+      ? urgentOppS.title.substring(0, 25) + ' — ' + (urgentOppS.daysLeft > 0 ? urgentOppS.daysLeft + ' days' : 'CLOSED')
+      : 'none this cycle';
+    document.getElementById('stat-urgent-sub').textContent = urgentSubS;
+    document.getElementById('alerts-count').textContent = (savedAlerts.length || DEMO_ALERTS.length).toString();
+    document.getElementById('last-scan-time').textContent = savedScan.scanTime || 'unknown';
+    document.getElementById('feed-badge').textContent = 'LAST LIVE SCAN';
+
+    addLogLine('SYSTEM', '✓ Live scan restored from storage (' + allData.length + ' opportunities)', 'done');
+    addLogLine('SYSTEM', 'Scanned: ' + (savedScan.sourcesList || 'jamaity') + ' — ' + (savedScan.scanTime || ''), 'info');
+
+  } else {
+    // Fall back to demo data
+    allData = DEMO_OPPORTUNITIES;
+    renderTable(allData);
+    renderAlerts(DEMO_ALERTS);
+
+    animateCounter('stat-sources', 6);
+    animateCounter('stat-found', 5);
+    animateCounter('stat-shortlisted', 5);
+    animateCounter('stat-urgent', DEMO_OPPORTUNITIES.filter(o => o.status === 'urgent').length);
+    document.getElementById('stat-sources-sub').textContent = 'jamaity, afac, unesco, cfw, eu, coe';
+    document.getElementById('stat-found-sub').textContent = 'across all sources';
+    const urgentOpp0 = DEMO_OPPORTUNITIES.find(o => o.status === 'urgent');
+    const urgentSub0 = urgentOpp0
+      ? urgentOpp0.title.substring(0, 25) + ' — ' + (urgentOpp0.daysLeft > 0 ? urgentOpp0.daysLeft + ' days' : 'CLOSED')
+      : 'none this cycle';
+    document.getElementById('stat-urgent-sub').textContent = urgentSub0;
+    document.getElementById('alerts-count').textContent = DEMO_ALERTS.length.toString();
+    const loadDate = new Date();
+    const loadDateStr = loadDate.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+    document.getElementById('last-scan-time').textContent = '05 Apr 2026 (loaded ' + loadDateStr + ')';
+    document.getElementById('feed-badge').textContent = 'LAST SCAN: 05 APR 2026';
+
+    const summaryLines = [
+      { source:'SYSTEM',   msg:'Last scan loaded — 05 April 2026', type:'done' },
+      { source:'JAMAITY',  msg:'3 opportunities found (CoE, Fablabs, Pouvoir d\'Agir)', type:'found' },
+      { source:'AFAC',     msg:'Documentary Film Grant — deadline passed (−3 days)', type:'urgent' },
+      { source:'UNESCO',   msg:'IFCD Cultural Diversity — deadline 6 May 2026', type:'found' },
+      { source:'CFW',      msg:'Pro database requires subscription — partial scan', type:'info' },
+      { source:'SCORING',  msg:'5 shortlisted · 1 urgent · 1 flagged for Cycle 2', type:'done' },
+    ];
+    summaryLines.forEach((l, i) => {
+      setTimeout(() => addLogLine(l.source, l.msg, l.type), i * 120);
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════
@@ -1327,61 +1363,79 @@ async function runLiveScan() {
     'anthropic-dangerous-direct-browser-access': 'true'
   };
 
-  // Accumulated results across all sources — pipeline adds to this
   let allResults = [];
   let sourcesHit = new Set();
 
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  // HELPER: call Claude with optional tools (agentic loop)
+  // HELPER: fetch a URL from the browser (no API cost)
+  // Returns plain text content that Claude can then parse
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  async function callClaude({ systemPrompt, userMessage, tools = [], maxTurns = 6 }) {
-    let messages = [{ role: 'user', content: userMessage }];
-    let rawText = '';
-    let turn = 0;
-
-    while (turn < maxTurns) {
-      turn++;
-      const body = {
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
-        messages
-      };
-      if (systemPrompt) body.system = systemPrompt;
-      if (tools.length) body.tools = tools;
-
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: API_HEADERS,
-        body: JSON.stringify(body)
-      });
-
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error('API ' + resp.status + ': ' + (err.error?.message || resp.status));
-      }
-
-      const data = await resp.json();
-
-      for (const block of data.content) {
-        if (block.type === 'text') rawText += block.text;
-        if (block.type === 'tool_use') {
-          addLogLine('TOOL', block.name + ': ' + JSON.stringify(block.input).slice(0, 80), 'info');
-        }
-      }
-
-      if (data.stop_reason === 'end_turn') break;
-
-      if (data.stop_reason === 'tool_use') {
-        messages.push({ role: 'assistant', content: data.content });
-        const toolResults = data.content
-          .filter(b => b.type === 'tool_use')
-          .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: b.output || '' }));
-        messages.push({ role: 'user', content: toolResults });
-        continue;
-      }
-      break;
+  async function browserFetch(url) {
+    try {
+      // Use a CORS proxy to bypass browser restrictions when fetching external sites
+      // We use allorigins which returns the page content
+      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
+      const resp = await fetch(proxyUrl);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const json = await resp.json();
+      return json.contents || '';
+    } catch(e) {
+      addLogLine('FETCH', '\u26a0 Could not fetch ' + url.slice(0, 50) + ': ' + e.message, 'urgent');
+      return '';
     }
-    return rawText;
+  }
+
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // HELPER: strip HTML tags, return readable text
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  function stripHTML(html) {
+    // Remove scripts, styles, nav, header, footer noise
+    let t = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, ' ');
+    // Replace tags with spaces
+    t = t.replace(/<[^>]+>/g, ' ');
+    // Decode HTML entities
+    t = t.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&nbsp;/g, ' ');
+    // Collapse whitespace
+    t = t.replace(/\s+/g, ' ').trim();
+    return t;
+  }
+
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // HELPER: extract opportunity slugs/links from Jamaity HTML
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  function extractJamaityLinks(html) {
+    const links = new Set();
+    const re = /href="(https?:\/\/jamaity\.org\/opportunity\/[^"]+)"/gi;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      links.add(m[1].split('?')[0].replace(/\/$/, '') + '/');
+    }
+    return [...links];
+  }
+
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // HELPER: call Claude API (no tools, pure text completion)
+  // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  async function callClaude(userMessage, maxTokens = 3000) {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: API_HEADERS,
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: userMessage }]
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error('API ' + resp.status + ': ' + (err.error?.message || resp.status));
+    }
+    const data = await resp.json();
+    return data.content.filter(b => b.type === 'text').map(b => b.text).join('');
   }
 
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
@@ -1396,7 +1450,7 @@ async function runLiveScan() {
   }
 
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  // HELPER: update progress bar (0\u2013100 pct)
+  // HELPER: update progress bar
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
   function setProgress(pct, label) {
     document.getElementById('progress-fill').style.width = pct + '%';
@@ -1405,147 +1459,160 @@ async function runLiveScan() {
   }
 
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  // STEP 1 \u2014 JAMAITY  (web_fetch on real filter URLs)
+  // STEP 1 \u2014 JAMAITY
+  // Strategy:
+  //   1. Browser fetches 3 Jamaity filter pages directly (free, no API cost)
+  //   2. Extract all /opportunity/ links from the HTML (regex, no API)
+  //   3. Fetch each individual opportunity page (free)
+  //   4. Extract text content from each page (free)
+  //   5. ONE Claude call to parse + score all items together
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  // Jamaity is a WordPress site with server-rendered HTML.
-  // Filter URLs return full page content \u2014 no JS execution required.
-  // We fetch 4 relevant filter combinations and ask Claude to parse + score them.
   async function stepJamaity() {
-    addLogLine('JAMAITY', 'Step 1/N \u2014 fetching jamaity.org/forsa/ (real HTML\u2026)', 'info');
     sourcesHit.add('JAMAITY');
     animateCounter('stat-sources', sourcesHit.size);
     document.getElementById('stat-sources-sub').textContent = [...sourcesHit].join(', ').toLowerCase();
-    setProgress(5, 'Jamaity \u2014 fetching pages\u2026');
+    setProgress(5, 'Jamaity \u2014 fetching listing pages\u2026');
+    addLogLine('JAMAITY', 'Step 1 \u2014 fetching Jamaity listing pages (browser fetch, no API cost)\u2026', 'info');
 
-    // The 4 filter combinations most relevant to our 3 entities:
-    // - all types (catch appel \u00e0 projets, dons, participation, etc.)
-    // - appel-a-projets specifically (highest relevance for Production + NGO)
-    // - page 2 of all types (pagination)
-    const JAMAITY_URLS = [
+    // Fetch 3 listing pages in parallel — browser does this, zero API cost
+    const LISTING_URLS = [
       'https://jamaity.org/forsa/?type=all&region=tunisie&theme=all',
       'https://jamaity.org/forsa/?type=appel-a-projets&region=tunisie&theme=all',
       'https://jamaity.org/forsa/?type=all&region=tunisie&theme=all&paged=2',
-      'https://jamaity.org/forsa/?type=all&region=tunisie&theme=Cin%C3%A9ma',
     ];
 
-    // Fetch all pages in parallel using Claude\u2019s web_fetch tool
-    // We do this by giving Claude a system prompt that instructs it to fetch each URL
-    // and return the raw opportunity cards it finds.
-    const FETCH_PROMPT = `You are a web scraping assistant. I need you to fetch these Jamaity.org pages and extract ALL opportunity cards from each page.
+    const listingHTMLs = await Promise.all(LISTING_URLS.map(u => browserFetch(u)));
+    addLogLine('JAMAITY', 'Fetched ' + listingHTMLs.filter(h => h.length > 100).length + '/3 listing pages', 'info');
+    setProgress(15, 'Jamaity \u2014 extracting opportunity links\u2026');
 
-For each page, use web_fetch to retrieve the full HTML, then extract every opportunity card you find.
+    // Extract all unique /opportunity/ links — pure JS regex, no API
+    const allLinks = new Set();
+    listingHTMLs.forEach(html => extractJamaityLinks(html).forEach(l => allLinks.add(l)));
+    const links = [...allLinks].slice(0, 30); // cap at 30 to avoid overloading
+    addLogLine('JAMAITY', 'Found ' + links.length + ' unique opportunity pages', links.length > 0 ? 'found' : 'urgent');
 
-Pages to fetch:
-${JAMAITY_URLS.map((u, i) => `${i+1}. ${u}`).join('\n')}
+    if (links.length === 0) {
+      addLogLine('JAMAITY', '\u26a0 No links extracted \u2014 Jamaity may have changed structure', 'urgent');
 
-For each opportunity card found across ALL pages, extract:
-- title (the opportunity name)
-- funder (the "Lanc\u00e9 par" organization)
-- type (e.g. "Appel \u00e0 projets", "Appel \u00e0 candidatures", etc.)
-- deadline_text (e.g. "Expire dans 3 semaines", "Expire dans 2 jours")
-- url (construct it as https://jamaity.org/opportunity/[slug]/ from the card\u2019s link href if visible, or leave blank)
+      // Fallback: pass the raw text of the listing pages directly to Claude
+      addLogLine('JAMAITY', 'Fallback: passing listing page text directly to Claude\u2026', 'info');
+      const combinedText = listingHTMLs.map(h => stripHTML(h)).join('\n\n---PAGE BREAK---\n\n').slice(0, 15000);
 
-After fetching all pages, return ONLY a JSON array of all unique opportunities found. No markdown, no explanation.
-Format: [{"title":"...","funder":"...","type":"...","deadline_text":"...","url":"..."}]
+      if (combinedText.length < 200) {
+        addLogLine('JAMAITY', '\u26a0 Could not fetch Jamaity pages \u2014 skipping', 'urgent');
+        return [];
+      }
 
-Deduplicate by title. Fetch ALL 4 URLs.`;
-
-    addLogLine('JAMAITY', 'Calling Claude to fetch + parse Jamaity pages\u2026', 'info');
-    setProgress(10, 'Jamaity \u2014 Claude fetching pages\u2026');
-
-    const rawText = await callClaude({
-      userMessage: FETCH_PROMPT,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      maxTurns: 10
-    });
-
-    const rawItems = safeParseArray(rawText);
-    if (!rawItems || !rawItems.length) {
-      addLogLine('JAMAITY', '\u26a0 Could not parse Jamaity page data \u2014 skipping source', 'urgent');
-      return [];
+      return await scoreJamaityText(combinedText, []);
     }
 
-    addLogLine('JAMAITY', `Found ${rawItems.length} raw items \u2014 now scoring\u2026`, 'found');
-    setProgress(30, 'Jamaity \u2014 scoring opportunities\u2026');
-    animateCounter('stat-found', allResults.length + rawItems.length);
+    // Fetch individual opportunity pages in small batches (browser fetch, no API cost)
+    setProgress(20, 'Jamaity \u2014 fetching opportunity details\u2026');
+    addLogLine('JAMAITY', 'Fetching ' + links.length + ' opportunity pages (browser, no API)\u2026', 'info');
 
-    // STEP 1b: Claude scores + structures the raw Jamaity items
+    const BATCH_SIZE = 5;
+    const pageTexts = [];
+    for (let i = 0; i < links.length; i += BATCH_SIZE) {
+      const batch = links.slice(i, i + BATCH_SIZE);
+      const htmls = await Promise.all(batch.map(u => browserFetch(u)));
+      htmls.forEach((html, j) => {
+        if (html.length > 100) {
+          const text = stripHTML(html).slice(0, 2000); // 2000 chars per page is enough
+          pageTexts.push({ url: batch[j], text });
+        }
+      });
+      setProgress(20 + Math.round((i / links.length) * 25), 'Jamaity \u2014 fetching ' + (i + BATCH_SIZE) + '/' + links.length + '\u2026');
+    }
+
+    addLogLine('JAMAITY', 'Fetched ' + pageTexts.length + ' opportunity pages \u2014 now calling Claude\u2026', 'info');
+    setProgress(50, 'Jamaity \u2014 Claude scoring (1 API call)\u2026');
+
+    // Compile all page texts into one block for Claude
+    const pagesBlock = pageTexts.map((p, i) =>
+      `--- OPPORTUNITY ${i+1} ---\nURL: ${p.url}\n${p.text}`
+    ).join('\n\n');
+
+    return await scoreJamaityText(pagesBlock, links);
+  }
+
+  // STEP 1b: One Claude call to parse + score all Jamaity content
+  async function scoreJamaityText(pagesBlock, links) {
+    const today = new Date().toISOString().slice(0, 10);
     const SCORE_PROMPT = `You are Fundraiser, an AI agent scoring funding opportunities for a Tunisian media & social impact group with 3 entities:
-1. Production Agency (documentaries, films, TV, post-production, audiovisual)
-2. Digital Media agencies (\u00d72) (social media, branded content, digital video, web series)
-3. NGO (youth training in content creation, civic engagement, media literacy)
+1. EMPIRIQ \u2014 Production Agency (documentaries, films, TV, post-production, audiovisual services, content creation)
+2. FREESH \u2014 Digital Media (social media, branded content, digital video, podcasts, youth civic awareness, web series)
+3. ATDCE \u2014 NGO (youth training in content creation, civic engagement, media literacy, 18\u201335 year olds)
 
-Here are raw opportunities scraped from Jamaity.org:
-${JSON.stringify(rawItems, null, 2)}
+Here is scraped content from Jamaity.org opportunity pages:
+${pagesBlock.slice(0, 18000)}
 
-For each opportunity:
-1. Determine which entities it fits: "production", "digital", "ngo" (can be multiple)
-2. Score it 1.0-5.0 based on: relevance to our entities (30%), Tunisia eligibility (25%), funding size potential (15%), win probability (15%), strategic value (10%), timeline feasibility (5%)
-3. Auto-disqualify (score 0) if: clearly not relevant to media/culture/civil society/youth
-4. Parse the deadline_text into an ISO date (YYYY-MM-DD). Today is ${new Date().toISOString().slice(0,10)}. Rules:
-   - "Expire dans X jours" = today + X days
-   - "Expire dans X semaine(s)" = today + X*7 days  
-   - "Expire dans X mois" = today + X*30 days
-   - "Expir\u00e9" or past = yesterday's date
-5. Estimate amount as "TBD" if not mentioned
-6. Write a 1-sentence strategic note in English
+Today is ${today}.
 
-Return ONLY a JSON array. Each object:
-{"title":"...","funder":"...","url":"...","entities":["production","ngo"],"score":4.2,"amount":"TBD","deadlineLabel":"...","deadline":"2026-05-15","notes":"..."}
+For EACH opportunity found in the text above:
+1. Extract: title, funder/organization, opportunity type, deadline information
+2. Determine entity fit: which of ["production","digital","ngo"] apply (can be multiple, or empty if none)
+3. Score 0.0\u20135.0:
+   - 4.5\u20135.0: Direct match (audiovisual production grants, media training, film funds, youth media NGO programs)
+   - 3.5\u20134.4: Strong indirect match (civil society funding, youth programs, digital projects, comms roles)
+   - 2.0\u20133.4: Weak match (general NGO calls, unrelated sectors but Tunisia-based)
+   - 0.0\u20131.9: No match (agriculture, health, legal sector, etc.) \u2014 still include these so we see everything
+4. Parse deadline to ISO date (YYYY-MM-DD) from the deadline text. Rules:
+   - "Expire dans X jour(s)" = ${today} + X days
+   - "Expire dans X semaine(s)" = ${today} + X*7 days
+   - "Expire dans X mois" = ${today} + X*30 days
+   - "Expir\u00e9" = yesterday
+5. Write a 1-sentence strategic note in English (for score >= 3.5 only, else "Not relevant")
+6. Estimate amount as "TBD" unless mentioned
 
-Only include items with score > 0. Sort by score descending. Return ALL scored items, do not truncate.`;
+Return ONLY a valid JSON array, no markdown, no explanation:
+[{"title":"...","funder":"...","url":"...","entities":["production","ngo"],"score":4.2,"amount":"TBD","deadlineLabel":"...","deadline":"2026-05-15","notes":"...","source":"Jamaity"}]
 
-    addLogLine('JAMAITY', 'Claude scoring ' + rawItems.length + ' items\u2026', 'info');
+Include ALL opportunities found (even low-score ones). Sort by score descending. Do not truncate.`;
 
-    const scoreText = await callClaude({
-      userMessage: SCORE_PROMPT,
-      maxTurns: 3
-    });
+    addLogLine('JAMAITY', 'Calling Claude to parse + score (1 API call)\u2026', 'info');
+    const rawText = await callClaude(SCORE_PROMPT, 4000);
 
-    const scored = safeParseArray(scoreText);
+    const scored = safeParseArray(rawText);
     if (!scored || !scored.length) {
-      addLogLine('JAMAITY', '\u26a0 Scoring produced no results', 'urgent');
+      addLogLine('JAMAITY', '\u26a0 Claude returned no parseable results', 'urgent');
+      // Log first 300 chars of response for debugging
+      addLogLine('JAMAITY', 'Raw response: ' + rawText.slice(0, 300), 'info');
       return [];
     }
 
-    // Tag each result with its source
-    const tagged = scored.map(o => ({ ...o, source: 'Jamaity' }));
-
-    addLogLine('JAMAITY', `\u2713 ${tagged.length} opportunities scored from Jamaity`, 'done');
-    tagged.forEach(o => {
-      const icon = (o.score >= 4) ? 'found' : 'info';
-      addLogLine('JAMAITY', o.title?.slice(0, 55) + ' \u2014 score ' + o.score, icon);
+    const tagged = scored.map(o => ({ ...o, source: o.source || 'Jamaity' }));
+    addLogLine('JAMAITY', '\u2713 ' + tagged.length + ' opportunities parsed from Jamaity', 'done');
+    tagged.filter(o => o.score >= 3.5).forEach(o => {
+      addLogLine('JAMAITY', o.title?.slice(0, 55) + ' \u2014 \u2605' + o.score, 'found');
     });
 
     return tagged;
   }
 
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  // FUTURE STEPS \u2014 stubs ready to implement
+  // FUTURE STEPS \u2014 stubs ready to implement (each will follow same pattern)
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
   // async function stepAFAC()    { ... }  // arabculturefund.org/Programs
   // async function stepUNESCO()  { ... }  // unesco.org IFCD + other calls
   // async function stepCFW()     { ... }  // culturefundingwatch.com
   // async function stepEU()      { ... }  // ec.europa.eu EIDHR/ENI/CERV
   // async function stepCoE()     { ... }  // eproc.coe.int tenders
+
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
   // PIPELINE ORCHESTRATOR
   // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
   try {
-    // --- Run each source step ---
     const jamaityResults = await stepJamaity();
     allResults = allResults.concat(jamaityResults);
 
-    // (future steps slot in here:)
-    // const afacResults  = await stepAFAC();  allResults = allResults.concat(afacResults);
-    // const unescoResults = await stepUNESCO(); allResults = allResults.concat(unescoResults);
+    // Future steps:
+    // const afacResults = await stepAFAC(); allResults = allResults.concat(afacResults);
 
-    setProgress(90, 'Scoring & ranking\u2026');
-    addLogLine('SCORING', 'Applying final scoring model\u2026', 'info');
+    setProgress(90, 'Ranking & saving\u2026');
+    addLogLine('SCORING', 'Ranking ' + allResults.length + ' total opportunities\u2026', 'info');
 
-    // --- Final rank + enrich client-side ---
+    // Rank + enrich client-side
     let parsed = allResults
-      .filter(o => o.score > 0)
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .map((o, i) => {
         const days = o.deadline ? daysFromNow(o.deadline) : 999;
@@ -1573,11 +1640,12 @@ Only include items with score > 0. Sort by score descending. Return ALL scored i
       ? liveUrgentOpp.title.substring(0, 25) + ' \u2014 ' + (liveUrgentOpp.daysLeft > 0 ? liveUrgentOpp.daysLeft + ' days' : 'CLOSED')
       : 'none this cycle';
     document.getElementById('stat-urgent-sub').textContent = liveUrgentSub;
+    document.getElementById('stat-sources-sub').textContent = [...sourcesHit].join(', ').toLowerCase();
 
     renderTable(parsed);
 
     const liveAlerts = parsed
-      .filter(o => o.status === 'urgent' || o.notes)
+      .filter(o => o.status === 'urgent' || (o.notes && o.score >= 3.5))
       .slice(0, 5)
       .map(o => ({
         type: o.status === 'urgent' ? 'urgent' : 'info',
@@ -1586,9 +1654,28 @@ Only include items with score > 0. Sort by score descending. Return ALL scored i
         desc: o.notes || o.deadlineLabel
       }));
     renderAlerts(liveAlerts.length ? liveAlerts : DEMO_ALERTS);
-    document.getElementById('alerts-count').textContent = liveAlerts.length;
-    document.getElementById('last-scan-time').textContent = new Date().toLocaleString('en-GB');
-    document.getElementById('stat-sources-sub').textContent = [...sourcesHit].join(', ').toLowerCase();
+    document.getElementById('alerts-count').textContent = (liveAlerts.length || DEMO_ALERTS.length).toString();
+
+    const scanTime = new Date().toLocaleString('en-GB');
+    document.getElementById('last-scan-time').textContent = scanTime;
+
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    // PERSIST to storage so results survive page refresh
+    // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    try {
+      const toSave = {
+        data: parsed,
+        alerts: liveAlerts,
+        sources: sourcesHit.size,
+        sourcesList: [...sourcesHit].join(', ').toLowerCase(),
+        scanTime: scanTime,
+        savedAt: new Date().toISOString()
+      };
+      await window.storage.set('fundraiser:last-scan', JSON.stringify(toSave));
+      addLogLine('SYSTEM', '\u2713 Results saved to storage \u2014 will persist after refresh', 'done');
+    } catch(e) {
+      addLogLine('SYSTEM', '\u26a0 Could not save to storage: ' + e.message, 'urgent');
+    }
 
     setProgress(100, 'Complete');
     addLogLine('COMPLETE', '\u2713 Pipeline complete \u2014 ' + parsed.length + ' opportunities ranked from ' + sourcesHit.size + ' source(s)', 'done');
